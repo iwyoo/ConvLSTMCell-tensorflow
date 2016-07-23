@@ -64,7 +64,7 @@ class ConvLSTMCell(rnn_cell.RNNCell):
   def zero_state(self):
     pass
 
-  def __call__(self, inputs, state, strides=1, scope=None):
+  def __call__(self, inputs, state, k_size=1, scope=None):
     """Convolutional Long short-term memory cell (ConvLSTM)."""
     with vs.variable_scope(scope or type(self).__name__): # "ConvLSTMCell"
       if self._state_is_tuple:
@@ -73,7 +73,7 @@ class ConvLSTMCell(rnn_cell.RNNCell):
         c, h = array_ops.split(3, 2, state)
 
       # batch_size * height * width * channel
-      concat = _conv([inputs, h], 4 * self._num_units, strides, True)
+      concat = _conv([inputs, h], 4 * self._num_units, k_size, True)
 
       # i = input_gate, j = new_input, f = forget_gate, o = output_gate
       i, j, f, o = array_ops.split(3, 4, concat)
@@ -88,7 +88,7 @@ class ConvLSTMCell(rnn_cell.RNNCell):
         new_state = array_ops.concat(3, [new_c, new_h])
       return new_h, new_state
       
-def _conv(args, output_size, strides=1, bias=True, bias_start=0.0, scope=None):
+def _conv(args, output_size, k_size, bias=True, bias_start=0.0, scope=None):
   if args is None or (_is_sequence(args) and not args):
     raise ValueError("`args` must be specified")
   if not _is_sequence(args):
@@ -111,12 +111,12 @@ def _conv(args, output_size, strides=1, bias=True, bias_start=0.0, scope=None):
       raise ValueError("Inconsistent height and width size in arguments: %s" % str(shapes))
   
   with vs.variable_scope(scope or "Conv"):
-    kernel = vs.get_variable("Kernel", [height, width, total_arg_size, output_size])
+    kernel = vs.get_variable("Kernel", [k_size, k_size, total_arg_size, output_size])
     
     if len(args) == 1:
-      res = tf.nn.conv2d(args[0], kernel, [1, strides, strides, 1], padding='SAME')
+      res = tf.nn.conv2d(args[0], kernel, [1, 1, 1, 1], padding='SAME')
     else:
-      res = tf.nn.conv2d(array_ops.concat(3, args), kernel, [1, strides, strides, 1], padding='SAME')
+      res = tf.nn.conv2d(array_ops.concat(3, args), kernel, [1, 1, 1, 1], padding='SAME')
 
     if not bias: return res
     bias_term = vs.get_variable( "Bias", [output_size],
