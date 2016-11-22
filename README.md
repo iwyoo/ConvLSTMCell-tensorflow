@@ -6,7 +6,7 @@ Future : Peephole connection will be added as the full LSTMCell implementation o
 
 ## Example
 ```python
-p_input = tf.placeholder(tf.float32, [None, height, width, step_size, elem_size])
+p_input = tf.placeholder(tf.float32, [None, height, width, step_size, channel])
 p_label = tf.placeholder(tf.float32, [None, height, width, 3])
 
 p_input_list = tf.split(3, step_size, p_input)
@@ -19,6 +19,6 @@ with tf.variable_scope("ConvLSTM") as scope: # as BasicLSTMCell
   for i, p_input_ in enumerate(p_input_list):
     if i > 0: 
       scope.reuse_variables()
-    # ConvCell takes Tensor with size [batch_size, height, width].
+    # ConvCell takes Tensor with size [batch_size, height, width, channel].
     t_output, state = cell(p_input_, state, k_size)
 ```
