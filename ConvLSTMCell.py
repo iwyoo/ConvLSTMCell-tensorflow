@@ -4,93 +4,49 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops.math_ops import sigmoid
 from tensorflow.python.ops.math_ops import tanh
-from tensorflow.python.platform import tf_logging as logging
-from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops import init_ops
-from tensorflow.python.ops.rnn_cell import LSTMStateTuple
 
-# Future : Replace it with tensorflow.python.util.nest
+from tensorflow.python.util import nest
 import collections
-import six
-def _is_sequence(seq):
-  return (isinstance(seq, collections.Sequence)
-          and not isinstance(seq, six.string_types))
 
-class ConvLSTMCell(rnn_cell.RNNCell):
-  """ Convolutional LSTM network cell (ConvLSTM).
+class ConvLSTMCell(object):
+  """ Convolutional LSTM network cell (ConvLSTMCell).
   The implementation is based on http://arxiv.org/abs/1506.04214. 
-   and BasicLSTMCell in TensorFlow. 
-   https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/ops/rnn_cell.py
-   
-   Future : Peephole connection will be added as the full LSTMCell
-            implementation of TensorFlow.
+   and `BasicLSTMCell` in TensorFlow. 
   """
-  def __init__(self, num_units, input_size=None,
-               use_peepholes=False, cell_clip=None,
-               initializer=None, num_proj=None, proj_clip=None,
-               num_unit_shards=1, num_proj_shards=1,
-               forget_bias=1.0, state_is_tuple=False,
-               activation=tanh):
-
-    if not state_is_tuple:
-      logging.warn(
-          "%s: Using a concatenated state is slower and will soon be "
-          "deprecated.  Use state_is_tuple=True." % self)
-    if input_size is not None:
-      logging.warn("%s: The input_size parameter is deprecated." % self)
-
-    #self._use_peepholes = use_peepholes
-    #self._cell_clip = cell_clip
-    #self._initializer = initializer
-    #self._num_proj = num_proj
-    #self._num_unit_shards = num_unit_shards
-    #self._num_proj_shards = num_proj_shards
-
-    self._num_units = num_units
-    self._forget_bias = forget_bias
-    self._state_is_tuple = state_is_tuple
-    self._activation = activation
-
-  @property
-  def state_size(self):
-    return (LSTMStateTuple(self._num_units, self._num_units)
-            if self._state_is_tuple else 2 * self._num_units)
-
-  @property
-  def output_size(self):
-    return self._num_units
+  def __init__(self, hidden_num, name="ConvLSTMCell", filter_size=[3,3], 
+               forget_bias=1.0, activation=tanh):
+    self.hidden_num = hidden_num
+    self.filter_size = filter_size
+    self.forget_bias = forget_bias
+    self.activation = activation
+    self.name = name
 
   def zero_state(self, batch_size, height, width):
-    return tf.zeros([batch_size, height, width, self._num_units*2])
+    return tf.zeros([batch_size, height, width, self.hidden_num*2])
 
-  def __call__(self, inputs, state, k_size=1, scope=None):
+  def __call__(self, inputs, state, scope=None):
     """Convolutional Long short-term memory cell (ConvLSTM)."""
-    with vs.variable_scope(scope or type(self).__name__): # "ConvLSTMCell"
-      if self._state_is_tuple:
-        c, h = state
-      else:
-        c, h = array_ops.split(3, 2, state)
+    with vs.variable_scope(scope or self.name): # "ConvLSTMCell"
+      c, h = array_ops.split(3, 2, state)
 
       # batch_size * height * width * channel
-      concat = _conv([inputs, h], 4 * self._num_units, k_size, True)
+      concat = _conv([inputs, h], 4 * self.hidden_num, self.filter_size, True)
 
       # i = input_gate, j = new_input, f = forget_gate, o = output_gate
       i, j, f, o = array_ops.split(3, 4, concat)
 
-      new_c = (c * sigmoid(f + self._forget_bias) + sigmoid(i) *
-               self._activation(j))
-      new_h = self._activation(new_c) * sigmoid(o)
+      new_c = (c * sigmoid(f + self.forget_bias) + sigmoid(i) *
+               self.activation(j))
+      new_h = self.activation(new_c) * sigmoid(o)
+      new_state = array_ops.concat(3, [new_c, new_h])
 
-      if self._state_is_tuple:
-        new_state = LSTMStateTuple(new_c, new_h)
-      else:
-        new_state = array_ops.concat(3, [new_c, new_h])
       return new_h, new_state
       
-def _conv(args, output_size, k_size, bias=True, bias_start=0.0, scope=None):
-  if args is None or (_is_sequence(args) and not args):
+def _conv(args, output_size, filter_size, stddev=0.001, bias=True, bias_start=0.0, scope=None):
+  if args is None or (nest.is_sequence(args) and not args):
     raise ValueError("`args` must be specified")
-  if not _is_sequence(args):
+  if not nest.is_sequence(args):
     args = [args]
 
   # Calculate the total size of arguments on dimension 3.
@@ -110,7 +66,9 @@ def _conv(args, output_size, k_size, bias=True, bias_start=0.0, scope=None):
       raise ValueError("Inconsistent height and width size in arguments: %s" % str(shapes))
   
   with vs.variable_scope(scope or "Conv"):
-    kernel = vs.get_variable("Kernel", [k_size, k_size, total_arg_size, output_size])
+    kernel = vs.get_variable("Kernel", 
+      [filter_size[0], filter_size[1], total_arg_size, output_size],
+      initializer=init_ops.truncated_normal_initializer(stddev=stddev))
     
     if len(args) == 1:
       res = tf.nn.conv2d(args[0], kernel, [1, 1, 1, 1], padding='SAME')
