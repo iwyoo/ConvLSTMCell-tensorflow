@@ -20,5 +20,5 @@ with tf.variable_scope("ConvLSTM") as scope: # as BasicLSTMCell
     if i > 0: 
       scope.reuse_variables()
     # ConvCell takes Tensor with size [batch_size, height, width, channel].
-    t_output, state = cell(p_input_, state, k_size)
+    t_output, state = cell(p_input_, state)
 ```
