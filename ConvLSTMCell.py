@@ -14,8 +14,8 @@ class ConvLSTMCell(object):
   The implementation is based on http://arxiv.org/abs/1506.04214. 
    and `BasicLSTMCell` in TensorFlow. 
   """
-  def __init__(self, hidden_num, name="ConvLSTMCell", filter_size=[3,3], 
-               forget_bias=1.0, activation=tanh):
+  def __init__(self, hidden_num, filter_size=[3,3], 
+               forget_bias=1.0, activation=tanh, name="ConvLSTMCell"):
     self.hidden_num = hidden_num
     self.filter_size = filter_size
     self.forget_bias = forget_bias
