@@ -31,7 +31,7 @@ class ConvLSTMCell(object):
       c, h = array_ops.split(3, 2, state)
 
       # batch_size * height * width * channel
-      concat = _conv([inputs, h], 4 * self.hidden_num, self.filter_size, True)
+      concat = _conv([inputs, h], 4 * self.hidden_num, self.filter_size)
 
       # i = input_gate, j = new_input, f = forget_gate, o = output_gate
       i, j, f, o = array_ops.split(3, 4, concat)
